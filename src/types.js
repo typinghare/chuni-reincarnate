@@ -5,7 +5,8 @@ const TYPES = {
     DataLoader: Symbol.for('DataLoader'),
     DataFetcher: Symbol.for('DataFetcher'),
     GameObjectContainer: Symbol.for('GameObjectContainer'),
-    GameObjectFactory: Symbol.for('GameObjectFactory')
+    GameObjectFactory: Symbol.for('GameObjectFactory'),
+    Game: Symbol.for('Game')
 };
 exports.default = TYPES;
 //# sourceMappingURL=types.js.map

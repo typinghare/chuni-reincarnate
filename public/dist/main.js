@@ -6191,8 +6191,7 @@ class Manager {
             const result = trigger(head, tail);
             result !== undefined && tail.assign(result);
         };
-        if (map instanceof Map)
-            map.forEach(cb);
+        if (map instanceof Map) map.forEach(cb);
     }
 }
 /**
@@ -7407,6 +7406,23 @@ var Reflect;
 
 /***/ }),
 
+/***/ "./src/config.js":
+/*!***********************!*\
+  !*** ./src/config.js ***!
+  \***********************/
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const config = {
+    staticUrl: 'http://127.0.0.1:3000/'
+};
+exports["default"] = config;
+//# sourceMappingURL=config.js.map
+
+/***/ }),
+
 /***/ "./src/data.js":
 /*!*********************!*\
   !*** ./src/data.js ***!
@@ -7431,6 +7447,7 @@ const inversify_1 = __webpack_require__(/*! inversify */ "./node_modules/inversi
 const types_1 = __webpack_require__(/*! ./types */ "./src/types.js");
 const axios_1 = __webpack_require__(/*! axios */ "./node_modules/axios/index.js");
 const link_oriented_1 = __webpack_require__(/*! link-oriented */ "./node_modules/link-oriented/src/index.js");
+const config_1 = __webpack_require__(/*! ./config */ "./src/config.js");
 let DataContainer = class DataContainer extends interface_1.AbstractDataContainer {
     constructor() {
         super(...arguments);
@@ -7472,10 +7489,19 @@ DataContainer = __decorate([
 ], DataContainer);
 exports.DataContainer = DataContainer;
 let DataLoader = class DataLoader extends interface_1.AbstractDataLoader {
-    async load(urlList, path) {
-        return false;
+    async load(urlList) {
+        try {
+            for (let url of urlList) {
+                await this.loadOne(url);
+            }
+            return true;
+        }
+        catch (e) {
+            return false;
+        }
     }
     async loadOne(url) {
+        url = config_1.default.staticUrl + url;
         let content = '';
         try {
             const { data } = await axios_1.default.get(url);
@@ -7528,6 +7554,10 @@ let DataFetcher = class DataFetcher extends interface_1.AbstractDataFetcher {
     fetch(path) {
         return this.dataContainer.get(path);
     }
+    fetchDict(path) {
+        const data = this.dataContainer.get(path);
+        return typeof data == 'object' && !(data instanceof Map) ? data : null;
+    }
 };
 __decorate([
     (0, inversify_1.inject)(types_1.default.DataContainer),
@@ -7553,8 +7583,8 @@ let GameObjectFactory = class GameObjectFactory extends interface_1.AbstractGame
         this._blueprintMap = new Map();
     }
     produce(cls, path) {
-        const data = this.dataFetcher.fetch(path);
-        if (typeof data != 'object')
+        const data = this.dataFetcher.fetchDict(path);
+        if (data === null)
             return null;
         const blueprint = this._blueprintMap.get(cls);
         if (blueprint === undefined)
@@ -7566,11 +7596,15 @@ let GameObjectFactory = class GameObjectFactory extends interface_1.AbstractGame
                 continue;
             obj[fullKey] = (0, link_oriented_1.$var)(parseInt(data[key]));
         }
+        console.log(obj);
         obj.make();
         return obj;
     }
     setBlueprint(cls, blueprint) {
         this._blueprintMap.set(cls, blueprint);
+    }
+    getBlueprint(cls) {
+        return this._blueprintMap.get(cls);
     }
 };
 __decorate([
@@ -7589,23 +7623,173 @@ exports.GameObjectFactory = GameObjectFactory;
 
 /***/ }),
 
-/***/ "./src/engine/unit/model.js":
-/*!**********************************!*\
-  !*** ./src/engine/unit/model.js ***!
-  \**********************************/
-/***/ ((__unused_webpack_module, exports) => {
+/***/ "./src/engine/blueprint.js":
+/*!*********************************!*\
+  !*** ./src/engine/blueprint.js ***!
+  \*********************************/
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.Unit = void 0;
+const unit_1 = __webpack_require__(/*! ./unit */ "./src/engine/unit.js");
+const blueprintMap = new Map();
+const unitBlueprint = {
+    hp: 'hitPoint',
+    hr: 'healthRegeneration',
+    mr: 'manaRegeneration',
+    at: 'attack',
+    mp: 'manaPoint',
+    sd: 'speed',
+    de: 'defense',
+    pa: 'parry'
+};
+blueprintMap.set(unit_1.Unit, unitBlueprint);
+const heroBlueprint = Object.assign({ ...unitBlueprint }, {
+    st: 'strength',
+    sp: 'spellPower',
+    ag: 'agility',
+    re: 'resistance',
+    fo: 'fortune'
+});
+blueprintMap.set(unit_1.Hero, heroBlueprint);
+exports["default"] = blueprintMap;
+//# sourceMappingURL=blueprint.js.map
+
+/***/ }),
+
+/***/ "./src/engine/bootstrap.js":
+/*!*********************************!*\
+  !*** ./src/engine/bootstrap.js ***!
+  \*********************************/
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const inversify_1 = __webpack_require__(/*! ../inversify */ "./src/inversify.js");
+const types_1 = __webpack_require__(/*! ../types */ "./src/types.js");
+const game = inversify_1.default.get(types_1.default.Game);
+game.start().then();
+//# sourceMappingURL=bootstrap.js.map
+
+/***/ }),
+
+/***/ "./src/engine/game.js":
+/*!****************************!*\
+  !*** ./src/engine/game.js ***!
+  \****************************/
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+
+"use strict";
+
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.Game = void 0;
+const inversify_1 = __webpack_require__(/*! inversify */ "./node_modules/inversify/es/inversify.js");
+const data_1 = __webpack_require__(/*! ../data */ "./src/data.js");
+const types_1 = __webpack_require__(/*! ../types */ "./src/types.js");
+const blueprint_1 = __webpack_require__(/*! ./blueprint */ "./src/engine/blueprint.js");
+const unit_1 = __webpack_require__(/*! ./unit */ "./src/engine/unit.js");
+const link_oriented_1 = __webpack_require__(/*! link-oriented */ "./node_modules/link-oriented/src/index.js");
+let Game = class Game {
+    async start() {
+        blueprint_1.default.forEach((blueprint, unit) => {
+            this.gameObjectFactory.setBlueprint(unit, blueprint);
+        });
+        await this.dataLoader.load(['data/unit/hero', 'data/unit/enemy']);
+        const hero = this.gameObjectFactory.produce(unit_1.Hero, 'unit.hero.init.human');
+        await this.dataLoader.load(['data/unit/hero', 'data/unit/enemy']);
+        const spider = this.gameObjectFactory.produce(unit_1.Unit, 'unit.enemy.spider');
+        console.log(spider);
+        link_oriented_1.Links.log(hero.hitPoint, 'hero HP');
+        link_oriented_1.Links.log(spider.hitPoint, 'spider HP');
+        const heroHandle = setInterval(() => {
+            const damage = Math.ceil(+hero.attack * (100 - +spider.defense) / 100);
+            spider.hitPoint.assign(+spider.hitPoint - damage);
+        }, 30000 / +hero.speed);
+        const spiderHandle = setInterval(() => {
+            const damage = Math.ceil(+spider.attack * (100 - +hero.defense) / 100);
+            hero.hitPoint.assign(+hero.hitPoint - damage);
+        }, 30000 / +spider.speed);
+        link_oriented_1.Links.trigger(spider.hitPoint, (hp) => {
+            console.log(`spider HP: ${hp.val}`);
+            if (+hp < 0) {
+                clearInterval(heroHandle);
+                clearInterval(spiderHandle);
+            }
+        });
+    }
+};
+__decorate([
+    (0, inversify_1.inject)(types_1.default.DataLoader),
+    __metadata("design:type", data_1.DataLoader)
+], Game.prototype, "dataLoader", void 0);
+__decorate([
+    (0, inversify_1.inject)(types_1.default.GameObjectFactory),
+    __metadata("design:type", data_1.GameObjectFactory)
+], Game.prototype, "gameObjectFactory", void 0);
+Game = __decorate([
+    (0, inversify_1.injectable)()
+], Game);
+exports.Game = Game;
+//# sourceMappingURL=game.js.map
+
+/***/ }),
+
+/***/ "./src/engine/unit.js":
+/*!****************************!*\
+  !*** ./src/engine/unit.js ***!
+  \****************************/
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.Hero = exports.Unit = void 0;
+const inversify_1 = __webpack_require__(/*! ../inversify */ "./src/inversify.js");
+const types_1 = __webpack_require__(/*! ../types */ "./src/types.js");
 class Unit {
     make() {
-        this.strength.link(this.attack, (strength) => +strength * 7);
-        this.spellPower.link(this.manaPoint, (spellPower) => +spellPower * 7);
-        this.agility.link(this.speed, (agility) => +agility * 6);
-        this.resistance.link(this.defense, (resistance) => +resistance * 4);
-        this.fortune.link(this.parry, (agility) => +agility * 5);
+    }
+    mountEffect(effect) {
+        effect.mount(this);
+        const duration = effect.duration;
+        if (duration >= 0) {
+            this.effect.add(effect);
+        }
+        if (duration > 0) {
+            setTimeout(() => {
+                this.unmountEffect(effect);
+            }, duration);
+        }
+    }
+    unmountEffect(effect) {
+        this.effect.delete(effect);
+        effect.unmount(this);
+    }
+}
+exports.Unit = Unit;
+class Hero extends Unit {
+    make() {
+        super.make();
+        const dataFetcher = inversify_1.default.get(types_1.default.DataFetcher);
+        const coefficient = dataFetcher.fetchDict('unit.hero.attribute.coefficient');
+        this.strength.link(this.attack, (strength) => +strength * +coefficient['attack']);
+        this.spellPower.link(this.manaPoint, (spellPower) => +spellPower * +coefficient['manaPoint']);
+        this.agility.link(this.speed, (agility) => +agility * +coefficient['speed']);
+        this.resistance.link(this.defense, (resistance) => +resistance * +coefficient['defense']);
+        this.fortune.link(this.parry, (agility) => +agility * +coefficient['parry']);
+        this.strength.link(this.healthRegeneration, (strength) => +strength * +coefficient['healthRegeneration']);
+        this.spellPower.link(this.manaRegeneration, (spellPower) => +spellPower * +coefficient['manaRegeneration']);
         this.strength.trigger();
         this.spellPower.trigger();
         this.agility.trigger();
@@ -7613,8 +7797,8 @@ class Unit {
         this.fortune.trigger();
     }
 }
-exports.Unit = Unit;
-//# sourceMappingURL=model.js.map
+exports.Hero = Hero;
+//# sourceMappingURL=unit.js.map
 
 /***/ }),
 
@@ -7678,10 +7862,10 @@ exports.AbstractGameObjectFactory = AbstractGameObjectFactory;
 
 /***/ }),
 
-/***/ "./src/inversify.config.js":
-/*!*********************************!*\
-  !*** ./src/inversify.config.js ***!
-  \*********************************/
+/***/ "./src/inversify.js":
+/*!**************************!*\
+  !*** ./src/inversify.js ***!
+  \**************************/
 /***/ ((__unused_webpack_module, exports, __webpack_require__) => {
 
 "use strict";
@@ -7691,14 +7875,16 @@ __webpack_require__(/*! reflect-metadata */ "./node_modules/reflect-metadata/Ref
 const inversify_1 = __webpack_require__(/*! inversify */ "./node_modules/inversify/es/inversify.js");
 const types_1 = __webpack_require__(/*! ./types */ "./src/types.js");
 const data_1 = __webpack_require__(/*! ./data */ "./src/data.js");
+const game_1 = __webpack_require__(/*! ./engine/game */ "./src/engine/game.js");
 const container = new inversify_1.Container();
 container.bind(types_1.default.DataContainer).to(data_1.DataContainer).inSingletonScope();
 container.bind(types_1.default.DataLoader).to(data_1.DataLoader).inSingletonScope();
 container.bind(types_1.default.DataFetcher).to(data_1.DataFetcher).inSingletonScope();
 container.bind(types_1.default.GameObjectContainer).to(data_1.GameObjectContainer).inSingletonScope();
 container.bind(types_1.default.GameObjectFactory).to(data_1.GameObjectFactory).inSingletonScope();
+container.bind(types_1.default.Game).to(game_1.Game).inSingletonScope();
 exports["default"] = container;
-//# sourceMappingURL=inversify.config.js.map
+//# sourceMappingURL=inversify.js.map
 
 /***/ }),
 
@@ -7716,7 +7902,8 @@ const TYPES = {
     DataLoader: Symbol.for('DataLoader'),
     DataFetcher: Symbol.for('DataFetcher'),
     GameObjectContainer: Symbol.for('GameObjectContainer'),
-    GameObjectFactory: Symbol.for('GameObjectFactory')
+    GameObjectFactory: Symbol.for('GameObjectFactory'),
+    Game: Symbol.for('Game')
 };
 exports["default"] = TYPES;
 //# sourceMappingURL=types.js.map
@@ -7801,28 +7988,7 @@ var exports = __webpack_exports__;
   \**********************/
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-const types_1 = __webpack_require__(/*! ./types */ "./src/types.js");
-const inversify_config_1 = __webpack_require__(/*! ./inversify.config */ "./src/inversify.config.js");
-const model_1 = __webpack_require__(/*! ./engine/unit/model */ "./src/engine/unit/model.js");
-const dataLoader = inversify_config_1.default.get(types_1.default.DataLoader);
-const gameObjectFactory = inversify_config_1.default.get(types_1.default.GameObjectFactory);
-dataLoader.loadOne('http://127.0.0.1:3000/data/unit/hero').then(() => {
-    gameObjectFactory.setBlueprint(model_1.Unit, {
-        st: 'strength',
-        sp: 'spellPower',
-        ag: 'agility',
-        re: 'resistance',
-        fo: 'fortune',
-        hp: 'hitPoint',
-        at: 'attack',
-        mp: 'manaPoint',
-        sd: 'speed',
-        de: 'defense',
-        pa: 'parry'
-    });
-    const hero = gameObjectFactory.produce(model_1.Unit, 'unit.hero');
-    console.log(hero);
-});
+__webpack_require__(/*! ./engine/bootstrap */ "./src/engine/bootstrap.js");
 //# sourceMappingURL=index.js.map
 })();
 

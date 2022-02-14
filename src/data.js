@@ -15,6 +15,7 @@ const inversify_1 = require("inversify");
 const types_1 = require("./types");
 const axios_1 = require("axios");
 const link_oriented_1 = require("link-oriented");
+const config_1 = require("./config");
 let DataContainer = class DataContainer extends interface_1.AbstractDataContainer {
     constructor() {
         super(...arguments);
@@ -56,10 +57,19 @@ DataContainer = __decorate([
 ], DataContainer);
 exports.DataContainer = DataContainer;
 let DataLoader = class DataLoader extends interface_1.AbstractDataLoader {
-    async load(urlList, path) {
-        return false;
+    async load(urlList) {
+        try {
+            for (let url of urlList) {
+                await this.loadOne(url);
+            }
+            return true;
+        }
+        catch (e) {
+            return false;
+        }
     }
     async loadOne(url) {
+        url = config_1.default.staticUrl + url;
         let content = '';
         try {
             const { data } = await axios_1.default.get(url);
@@ -112,6 +122,10 @@ let DataFetcher = class DataFetcher extends interface_1.AbstractDataFetcher {
     fetch(path) {
         return this.dataContainer.get(path);
     }
+    fetchDict(path) {
+        const data = this.dataContainer.get(path);
+        return typeof data == 'object' && !(data instanceof Map) ? data : null;
+    }
 };
 __decorate([
     (0, inversify_1.inject)(types_1.default.DataContainer),
@@ -137,8 +151,8 @@ let GameObjectFactory = class GameObjectFactory extends interface_1.AbstractGame
         this._blueprintMap = new Map();
     }
     produce(cls, path) {
-        const data = this.dataFetcher.fetch(path);
-        if (typeof data != 'object')
+        const data = this.dataFetcher.fetchDict(path);
+        if (data === null)
             return null;
         const blueprint = this._blueprintMap.get(cls);
         if (blueprint === undefined)
@@ -150,11 +164,15 @@ let GameObjectFactory = class GameObjectFactory extends interface_1.AbstractGame
                 continue;
             obj[fullKey] = (0, link_oriented_1.$var)(parseInt(data[key]));
         }
+        console.log(obj);
         obj.make();
         return obj;
     }
     setBlueprint(cls, blueprint) {
         this._blueprintMap.set(cls, blueprint);
+    }
+    getBlueprint(cls) {
+        return this._blueprintMap.get(cls);
     }
 };
 __decorate([

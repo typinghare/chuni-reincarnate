@@ -7,6 +7,7 @@ import {
   Blueprint,
   Class,
   DataMap,
+  Producible,
   Scalar,
   StringDict
 } from './interface';
@@ -14,6 +15,7 @@ import { inject, injectable } from 'inversify';
 import TYPES from './types';
 import axios from 'axios';
 import { $var } from 'link-oriented';
+import config from './config';
 
 @injectable()
 export class DataContainer extends AbstractDataContainer {
@@ -53,11 +55,19 @@ export class DataLoader extends AbstractDataLoader {
   @inject<DataContainer>(TYPES.DataContainer)
   public dataContainer: DataContainer;
 
-  public async load(urlList: Array<string>, path: string): Promise<boolean> {
-    return false;
+  public async load(urlList: Array<string>): Promise<boolean> {
+    try {
+      for (let url of urlList) {
+        await this.loadOne(url);
+      }
+      return true;
+    } catch (e) {
+      return false;
+    }
   }
 
   public async loadOne(url: string): Promise<boolean> {
+    url = config.staticUrl + url;
     let content = '';
     try {
       const { data } = await axios.get(url);
@@ -110,6 +120,12 @@ export class DataFetcher extends AbstractDataFetcher {
   public fetch(path: string): DataMap | StringDict | Scalar {
     return this.dataContainer.get(path);
   }
+
+  public fetchDict(path: string): StringDict | null {
+    const data = this.dataContainer.get(path);
+    // @ts-ignore
+    return typeof data == 'object' && !(data instanceof Map) ? data : null;
+  }
 }
 
 @injectable()
@@ -127,10 +143,10 @@ export class GameObjectFactory extends AbstractGameObjectFactory {
   @inject<DataFetcher>(TYPES.DataFetcher)
   public dataFetcher: DataFetcher;
 
-  public produce(cls: Class<any>, path: string): object {
+  public produce<T extends Producible>(cls: Class<T>, path: string): T {
     // @ts-ignore
-    const data: StringDict = this.dataFetcher.fetch(path);
-    if (typeof data != 'object') return null;
+    const data: StringDict = this.dataFetcher.fetchDict(path);
+    if (data === null) return null;
 
     const blueprint = this._blueprintMap.get(cls);
     if (blueprint === undefined) return null;
@@ -139,15 +155,21 @@ export class GameObjectFactory extends AbstractGameObjectFactory {
     for (let key in data) {
       let fullKey = blueprint[key];
       if (!fullKey) continue;
+      // @ts-ignore
       obj[fullKey] = $var(parseInt(data[key]));
     }
 
+    console.log(obj);
     obj.make();
     return obj;
   }
 
   public setBlueprint(cls: Class<any>, blueprint: Blueprint): void {
     this._blueprintMap.set(cls, blueprint);
+  }
+
+  public getBlueprint(cls: Class<any>): Blueprint {
+    return this._blueprintMap.get(cls);
   }
 }
 

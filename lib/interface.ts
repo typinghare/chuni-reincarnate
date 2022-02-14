@@ -1,6 +1,5 @@
 import { $var, Var } from 'link-oriented';
 import { injectable } from 'inversify';
-import { Producible } from './engine/interface/common';
 
 export type Class<T extends Producible> = new (...args: any[]) => T;
 export type Scalar = string | number | boolean | null;
@@ -38,7 +37,7 @@ export abstract class AbstractDataLoader {
     return path.trim().split(AbstractDataLoader.PATH_SEPARATOR);
   }
 
-  public abstract load(urlList: Array<string>, path: string): Promise<boolean>;
+  public abstract load(urlList: Array<string>): Promise<boolean>;
 
   public abstract loadOne(url: string, path: string): Promise<boolean>;
 }
@@ -59,9 +58,11 @@ export abstract class AbstractGameObjectContainer {
 export abstract class AbstractGameObjectFactory {
   protected _blueprintMap: Map<Class<any>, Blueprint>;
 
-  public gameObjectContainer: AbstractGameObjectContainer;
-
   public abstract setBlueprint(cls: Class<any>, blueprint: Blueprint): void;
 
   public abstract produce(cls: Class<any>, path: string): object;
+}
+
+export interface Producible {
+  make(): void;
 }

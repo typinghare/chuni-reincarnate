@@ -1,4 +1,4 @@
-import { Unit } from '../unit/model';
+import { Unit } from './unit';
 
 export type ActedFunction = (unit: Unit) => void;
 
